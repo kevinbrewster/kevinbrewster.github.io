@@ -11,6 +11,12 @@ swift package init --type=executable
 
 * Note: If you wanted to create a library instead, you would omit the type parameter and simply swift package init instead.
 
+### Setup Dependencies
+
+1. Edit Package.swift
+2. `swift build`
+
+
 ### Add Project to XCode
 
 ```
