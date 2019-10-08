@@ -22,6 +22,8 @@ swift package init --type=executable
 ```
 swift package generate-xcodeproj
 ```
+
+### Add Project to Github
 1. In Xcode, add Github account under Xcode > Preferences > Accounts
 2. Select Source Control > Create Git Repositories create a git repository for the project.
 3. Select View > Navigators > Show Source Control Navigator
