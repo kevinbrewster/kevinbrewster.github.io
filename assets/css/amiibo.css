@@ -1,0 +1,128 @@
+ul {
+	margin: 30px 0;
+	margin-left: 1em;
+}
+ul li {
+	margin: 10px 0;
+}
+
+
+table.layout {
+	border-collapse: collapse;
+	width: 100%;
+	max-width: 600px;
+
+}
+
+table.layout th, table.layout td {
+	border: 1px solid #ccc;
+	padding: 5px 5px;
+	cursor: pointer;
+	/*opacity: 0.6;*/
+	text-align: center;
+	position: relative;
+}
+table.layout th {
+	color: #999;
+	font-weight: normal;
+	text-transform: uppercase;
+}
+
+table.layout th:hover, table.layout td:hover {
+	
+}
+table.layout td .lock {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	display: block;
+	width: 24px;
+	height: 24px;
+	background: url("/assets/images/lock.png");
+	background-size: contain;
+}
+table.layout td div.title {
+	margin: 10px 0;
+	font-weight: bold;
+}
+table.layout td div.notes {
+	margin: 5px;
+	font-style: italic;
+	opacity: 0.5;
+}
+table.layout td div.size {
+	margin: 5px;
+	font-style: italic;
+	font-weight: bold;
+	opacity: 0.5;
+}
+
+.color1 { 
+	background: #388087;
+	color: white;
+}
+.color2 { 
+	background: #6FB3B8;
+	color: white;
+}
+.color3 { 
+	background: #BADFE7;
+	color: #333;
+}
+.color4 { 
+	background: #C2EDCE;
+	color: #333;
+}
+.color5 { 
+	background: #F6F6F2;
+	color: #333;
+}
+.color6 { 
+	background: #FCB5B5;
+	color: #333;
+}
+
+
+table.command {
+	border-collapse: collapse;
+	width: 100%;
+	max-width: 400px;
+	margin-top:6px;
+	margin-bottom: 20px;
+
+}
+table.command th:first-child {
+	width: 40%;
+}
+table.command th, table.command td {
+	border: 1px solid #ccc;
+	padding: 5px 5px;
+	cursor: pointer;
+	/*opacity: 0.6;*/
+	text-align: center;
+	position: relative;
+}
+table.command th {
+	font-weight: normal;
+	text-transform: uppercase;
+	background: #eee;
+}
+
+.note {
+	font-style: italic;
+}
+
+pre { 
+	margin: 12px 0;
+
+	font: 14px / 1.5 'Roboto Mono',monospace;
+	color: #666;
+	-moz-tab-size: 4;
+	tab-size: 4;
+	overflow: auto;
+	padding: 25px;
+	border: 0 solid #e5e5e5;
+	border-radius: 0;
+	background: #f8f8f8;
+}
+
