@@ -1,15 +1,28 @@
 ---
 layout: post
-title:  "DRAFT: A Summary of Nintendo Amiibo (NFC Tag) Reverse-Engineering"
+title:  "DRAFT: A Summary of Nintendo Amiibo (NFC Toy) Reverse-Engineering"
 date:   2020-04-26 23:41:47 -0400
 permalink: /:title/
 ---
 <link rel="stylesheet" href="/assets/css/amiibo.css"> 
-<h2>Intro</h2>
-<p>This is an attempt to summarize the results of the reverse-engineering efforts of the Nintendo Amiibo NFC toys from ~2015. <b>I personally had no involvement</b> - I only recently became aware of the efforts when I made a simple iOS app called <a href="https://github.com/kevinbrewster/TagWallet">TagWallet</a> (github link). <b>This is merely a compilation of what I've learned</b>.
+<h3>Intro</h3>
+<p>This is an attempt to summarize the (circa 2015) reverse-engineering efforts of the Nintendo Amiibo NFC toys. I personally had no involvement - I only recently became aware of the efforts when I made a simple iOS app called <a href="https://github.com/kevinbrewster/TagWallet">TagWallet</a> (github link). This is merely a compilation of what I've learned.
 </p>
 
-<h1>NTAG215 Overview</h1>
+
+<h3>Amiibo Overview</h3>
+
+<ul>
+    <li>~4" (10cm) tall figurines (or cards) made by Nintendo that have an <b>integrated NTAG215 chip</b> at their base</li>
+    <li>Recent game consoles (e.g. 3DS, Switch) and controllers have NFC readers to detect Amiibo "taps"</li>
+    <li>Amiibo's can <b>unlock extra character/levels</b> in games or <b>give bonuses/special items</b> (via reading from NTAG215)</li>
+    <li>Amiibo's can track player customizations and/or level-ups (via writing to NTAG215)</li>
+    <li>There's often artificial scarcity of certain models. Some are especially rare or "special". Re-sold on ebay for highly marked up prices.</li>
+</ul>
+
+
+
+<h3>NTAG215 Overview</h3>
 
 <div><img src="/assets/images/ntag215.jpg"></div>
 
@@ -21,7 +34,6 @@ permalink: /:title/
     <li>Memory is read/written to in <b>4-byte chunks called "pages"</b>, for a total of 135 pages.
     <li>7-byte <b>UID</b> (aka serial number) hardcoded at factory that can't be changed (plus 2 check bytes for 9 bytes total)</li>
     <li>The <b>"lock bytes"</b> specify which pages can no longer be written to. Each bit corresponds to a range of pages. Once a bit has been set, it's can't be unset and the corresponding page(s) are read-only henceforth.</li>
-    <li>You can specify a 32-bit password <b>(PWD)</b> to restrict read and/or write access to a configurable part of memory. Mifare recommends that the password be derived from the UID to improve security. To prevent brute-force attacks on the password, you can configure the max allowed invalid attempts (default = 11)</li>
 </ul>
 
 
@@ -87,17 +99,21 @@ permalink: /:title/
     <tr>
         <th>130</th>
         <td colspan="3" class="color6">Dynamic Lock Bytes</td>
-        <td class="color5">RFUI</td>
+        <td class="color5">-</td>
     </tr>
 
     <tr>
         <th>131</th>
-        <td colspan="4" class="color5">CFG 0</td>
+        <td class="color5">MIRROR</td>
+        <td class="color5">-</td>
+        <td class="color5">MIRROR_PAGE</td>
+        <td class="color5">AUTH0</td>
     </tr>
 
     <tr>
         <th>132</th>
-        <td colspan="4" class="color5">CFG 1</td>
+        <td class="color5">ACCESS</td>
+        <td colspan="3" class="color5">-</td>
     </tr>
 
     <tr>
@@ -108,10 +124,23 @@ permalink: /:title/
     <tr>
         <th>134</th>
         <td colspan="2" class="color5">PACK</td>
-        <td colspan="2" class="color5">RFUI</td>
+        <td colspan="2" class="color5">-</td>
     </tr>
 
 </table>
+
+
+<h3>NTAG215 Authentication</h3>
+<p>The NTAG215 provides a rudimentary authentication mechanism. To enable password authentication:</p>
+<ul>
+    <li>Write to the <b>AUTH0</b> byte to specify the page from which password verification is required</li>
+    <li>Write to the <b>ACCESS</b> byte to specify "write access protection" or "read and write access protection". Also you can configure the max allowed invalid attempts (default = 11) to prevent brute force attacks.</li>
+    <li>Write a 32-bit password to the <b>PWD</b> bytes. Mifare recommends that the password be derived from the UID to improve security.</li>
+    <li>Write a 16-bit password acknowledgement to the <b>PACK</b> bytes</li>
+</ul>
+<p>Once enabled, you must use the <b>PWD_AUTH</b> command to authenticate, which returns the PACK value as acknowledgement.</p>
+
+
 
 <h3>NTAG215 Commands</h3>
 
@@ -119,297 +148,404 @@ permalink: /:title/
     In iOS, you use the <a href="https://developer.apple.com/documentation/corenfc?language=objc">CoreNFC framework</a> to create a connection between your app and a tag. Once connected, you issue <a href="https://developer.apple.com/documentation/corenfc/nfcmifaretag/3043838-sendmifarecommand?language=objc">MiFare commands</a> (as specified in the  <a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=41&zoom=100,0,793">data sheet</a>) to read or write, or otherwise interact with the tag). Despite what the <a href="https://developer.apple.com/documentation/corenfc/nfcmifaretag/3043838-sendmifarecommand?language=objc">CoreNFC documentation</a> says, Apple computes the 2-byte CRC for you, which simplifies things! I believe it's a similar situation with Android. 
 </p>
 <p>Below are the four most common commands. <a href="https://github.com/kevinbrewster/TagWallet/blob/def83606581fb23514f94eb3c5c4b1bfd71781ff/TagWallet/MiFareTag.swift#L59">Here are some examples of these commands in use (Swift).</a></p>
-<div>
-    <div>
-         <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=34&zoom=100,0,793" target="_blank">GET_VERSION</a></h4>
-         Request:  
-         <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0</td>
-                <td>Command</td>
-                <td>
-                    0x60
-                </td>
 
-            </tr>
-        </table>
+ <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=34&zoom=100,0,793" target="_blank">GET_VERSION</a></h4>
+ Request:  
+ <table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>Command</td>
+        <td>
+            0x60
+        </td>
 
-        Response:
-        <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0</td>
-                <td>
-                    Fixed Header
-                </td>
-                <td>0x00</td>
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>
-                    Vendor ID
-                </td>
-                <td>0x04</td>
-            </tr>
-            <tr>
-                <td>2</td>
-                <td>
-                    Product Type
-                </td>
-                <td>0x04</td>
-            </tr>
-            <tr>
-                <td>3</td>
-                <td>
-                    Product Subtype
-                </td>
-                <td>0x02</td>
-            </tr>
+    </tr>
+</table>
 
-            <tr>
-                <td>4</td>
-                <td>
-                    Maj. Product Ver.
-                </td>
-                <td>0x01</td>
-            </tr>
+Response:
+<table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>
+            Fixed Header
+        </td>
+        <td>0x00</td>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>
+            Vendor ID
+        </td>
+        <td>0x04</td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>
+            Product Type
+        </td>
+        <td>0x04</td>
+    </tr>
+    <tr>
+        <td>3</td>
+        <td>
+            Product Subtype
+        </td>
+        <td>0x02</td>
+    </tr>
 
-            <tr>
-                <td>5</td>
-                <td>
-                    Min. Product Ver.
-                </td>
-                <td>0x00</td>
-            </tr>
+    <tr>
+        <td>4</td>
+        <td>
+            Maj. Product Ver.
+        </td>
+        <td>0x01</td>
+    </tr>
 
-            <tr>
-                <td>6</td>
-                <td>
-                    Storage Size
-                </td>
-                <td>0x11</td>
-            </tr>
+    <tr>
+        <td>5</td>
+        <td>
+            Min. Product Ver.
+        </td>
+        <td>0x00</td>
+    </tr>
 
-            <tr>
-                <td>7</td>
-                <td>
-                    Protocol Type
-                </td>
-                <td>0x03</td>
-            </tr>
+    <tr>
+        <td>6</td>
+        <td>
+            Storage Size
+        </td>
+        <td>0x11</td>
+    </tr>
 
-        </table>
+    <tr>
+        <td>7</td>
+        <td>
+            Protocol Type
+        </td>
+        <td>0x03</td>
+    </tr>
 
-
-         <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=37&zoom=100,0,793" target="_blank">READ</a></h4>
-         <p class="note">Reads 4 pages (16 bytes) starting at the specified page number</p>
-
-         <div>Request:</div>
-         <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0</td>
-                <td>Command</td>
-                <td>
-                    0x30
-                </td>
-
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>Start Page #</td>
-                <td>[0..&lt;135]</td>
-            </tr>
-        </table>
-
-        <div>Response:</div>
-        <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0..&lt;4</td>
-                <td>Page[start + 0]</td>
-                <td>4 bytes</td>
-            </tr>
-            <tr>
-                <td>4..&lt;8</td>
-                <td>Page[start + 1]</td>
-                <td>4 bytes</td>
-            </tr>
-            <tr>
-                <td>8..&lt;12</td>
-                <td>Page[start + 2]</td>
-                <td>4 bytes</td>
-            </tr>
-            <tr>
-                <td>12..&lt;16</td>
-                <td>Page[start + 3]</td>
-                <td>4 bytes</td>
-            </tr>
-        </table>
+</table>
 
 
-         <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=39&zoom=100,0,793" target="_blank">FAST_READ</a></h4>
-         <p class="note">Reads a range of pages, inclusive of the start/end pages. Note: I experienced timeout errors when I tried to read an entire tag's memory in a single FAST_READ. I ended up doing a few batches of ~40 pages each, which seems to be a common approach.</p>
+ <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=37&zoom=100,0,793" target="_blank">READ</a></h4>
+ <p class="note">Reads 4 pages (16 bytes) starting at the specified page number</p>
 
-         <div>Request:</div>
-         <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0</td>
-                <td>Command</td>
-                <td>
-                    0x3A
-                </td>
+ <div>Request:</div>
+ <table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>Command</td>
+        <td>
+            0x30
+        </td>
 
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>Start Page #</td>
-                <td>[0..&lt;135]</td>
-            </tr>
-            <tr>
-                <td>2</td>
-                <td>End Page #</td>
-                <td>[0..&lt;135]</td>
-            </tr>
-        </table>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>Start Page #</td>
+        <td>[0..&lt;135]</td>
+    </tr>
+</table>
 
-        <div>Response:</div>
-        <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0..&lt;4</td>
-                <td>Page[start]</td>
-                <td>4 bytes</td>
-            </tr>
-            <tr>
-                <td>4..&lt;8</td>
-                <td>Page[start + 1]</td>
-                <td>4 bytes</td>
-            </tr>
-             <tr>
-                <td>...</td>
-                <td>...</td>
-                <td>4 bytes</td>
-            </tr>
-            <tr>
-                <td>...</td>
-                <td>Page[end]</td>
-                <td>4 bytes</td>
-            </tr>
-        </table>
+<div>Response:</div>
+<table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0..&lt;4</td>
+        <td>Page[start + 0]</td>
+        <td>4 bytes</td>
+    </tr>
+    <tr>
+        <td>4..&lt;8</td>
+        <td>Page[start + 1]</td>
+        <td>4 bytes</td>
+    </tr>
+    <tr>
+        <td>8..&lt;12</td>
+        <td>Page[start + 2]</td>
+        <td>4 bytes</td>
+    </tr>
+    <tr>
+        <td>12..&lt;16</td>
+        <td>Page[start + 3]</td>
+        <td>4 bytes</td>
+    </tr>
+</table>
 
 
-        <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=41&zoom=100,0,793" target="_blank">WRITE</a></h4>
-         
-         <p class="note">Write a single page (4 bytes) at a time.</p>
+ <h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=39&zoom=100,0,793" target="_blank">FAST_READ</a></h4>
+ <p class="note">Reads a range of pages, inclusive of the start/end pages. Note: I experienced timeout errors when I tried to read an entire tag's memory in a single FAST_READ. I ended up doing a few batches of ~40 pages each, which seems to be a common approach.</p>
 
-         <div>Request:</div>
-         <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0</td>
-                <td>Command</td>
-                <td>
-                    0xA2
-                </td>
+ <div>Request:</div>
+ <table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>Command</td>
+        <td>
+            0x3A
+        </td>
 
-            </tr>
-            <tr>
-                <td>1</td>
-                <td>Page #</td>
-                <td>[0..&lt;135]</td>
-            </tr>
-            <tr>
-                <td>2..&lt;6</td>
-                <td>Data</td>
-                <td>4 bytes</td>
-            </tr>
-        </table>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>Start Page #</td>
+        <td>[0..&lt;135]</td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>End Page #</td>
+        <td>[0..&lt;135]</td>
+    </tr>
+</table>
 
-        <div>Response:</div>
-        <table class="command">
-            <tr>
-                <th>Byte Offset</th>
-                <th>Description</th>
-                <th>Value</th>
-            </tr>
-            <tr>
-                <td>0</td>
-                <td>ACK/NAK</td>
-                <td>4 bit value</td>
-            </tr>            
-        </table>
-    </div>
-</div>
-<h2>Amiibo Overview</h2>
+<div>Response:</div>
+<table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0..&lt;4</td>
+        <td>Page[start]</td>
+        <td>4 bytes</td>
+    </tr>
+    <tr>
+        <td>4..&lt;8</td>
+        <td>Page[start + 1]</td>
+        <td>4 bytes</td>
+    </tr>
+     <tr>
+        <td>...</td>
+        <td>...</td>
+        <td>4 bytes</td>
+    </tr>
+    <tr>
+        <td>...</td>
+        <td>Page[end]</td>
+        <td>4 bytes</td>
+    </tr>
+</table>
 
+
+<h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=41&zoom=100,0,793" target="_blank">WRITE</a></h4>
+ 
+ <p class="note">Write a single page (4 bytes) at a time.</p>
+
+ <div>Request:</div>
+ <table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>Command</td>
+        <td>
+            0xA2
+        </td>
+
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>Page #</td>
+        <td>[0..&lt;135]</td>
+    </tr>
+    <tr>
+        <td>2..&lt;6</td>
+        <td>Data</td>
+        <td>4 bytes</td>
+    </tr>
+</table>
+
+<div>Response:</div>
+<table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>ACK/NAK</td>
+        <td>4 bit value</td>
+    </tr>            
+</table>
+
+
+
+<h4><a href="https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf#page=46&zoom=100,0,793" target="_blank">PWD_AUTH</a></h4>
+ 
+ <p class="note">Authenticate with tag if read and/or write password protection was previously enabled.</p>
+
+ <div>Request:</div>
+ <table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>Command</td>
+        <td>
+            0x1B
+        </td>
+
+    </tr>
+    <tr>
+        <td>1..&lt;5</td>
+        <td>Password</td>
+        <td>4 bytes</td>
+    </tr>
+</table>
+
+<div>Response:</div>
+<table class="command">
+    <tr>
+        <th>Byte Offset</th>
+        <th>Description</th>
+        <th>Value</th>
+    </tr>
+    <tr>
+        <td>0..&lt;2</td>
+        <td>PACK</td>
+        <td>2 bytes</td>
+    </tr>            
+</table>
+
+
+
+
+<h3>Amiibo Encryption Reverse Engineering</h3>
 <ul>
-    <li>~4" (10cm) tall figurines (or cards) made by Nintendo that have an <b>integrated NTAG215 chip</b> at their base</li>
-    <li>Recent game consoles (e.g. 3DS, Switch) and controllers have NFC readers to detect Amiibo "taps"</li>
-    <li>Amiibo's can <b>unlock extra character/levels</b> in games or <b>give bonuses/special items</b> (via reading from NTAG215)</li>
-    <li>Amiibo's can track player customizations and/or level-ups (via writing to NTAG215)</li>
-    <li>There's often artificial scarcity of certain models. Some are especially rare or "special". Re-sold on ebay for highly marked up prices.</li>
-</ul>
-
-<h3>Techincal Notes</h3>
-<ul>
-    <li><b>All bytes are readable</b> (although pages #133 and #134 return 0's)</li>
-    <li><b>Authentication required for write-access</b> (The NTAG215's PWD bytes were set at factory)</li>
+    <li>All 504 bytes of "user memory" can be freely read.</li>
+    <li><b>Password required for write acces</b></li>
     <li>The NTAG215 "lock bytes" are set to <b>disable write-access to the "Amiibo Model Info"</b> (so you can't change an existing amiibo into a different model)</li>
-    <li>The main Amiibo data (360 bytes) is <b>encrypted with AES-128-CTR</b> using a private Nintendo "Data Key" (aka "unfixed-info" key)</li>
-    <li>An <b>HMAC-256 hash</b> of the static tag data (UID + Amiibo Model Info + Keygen Salt) is stored in memory (using a private Nintendo "Tag Key" - aka "locked-secret" key)</li>
-    <li>An <b>HMAC-256 hash</b> of the re-writable user data is stored in memory (using a private Nintendo "Data Key" - aka "unfixed-info" key)</li>
-    <li>The "Tag HMAC Hash" prevents you from simply copying the data from an amiibo to a blank NTAG215, because the blank tag has a different hard-coded UID (unless you know the key!)</li>
-    <li>The "Data HMAC Hash" prevents you from modifying the "Amiibo Data" in-place on an existing amiibo (unless you know the key!)</li>
+    <li>To increase security, <b>Nintendo added their own layer of encryption and digital signing.</b> The digital signing prevents you from blindly altering the game data bytes because then the signature will 
+    no longer match. Additionally, <b>the signature is also based on the UID of the tag, so you can't simply copy the bytes from an Amiibo to a blank NTAG215 to clone it</b> (because the blank tag has a different, hard-coded UID).</li>
+    <li>See <a href="#amiibo_byte_layout">Amiibo Byte Layout</a> below</li>
 </ul>
-
-<h3>Reverse Engineering</h3>
+<p>In April of 2015, Marcos Del Sol Vives (aka socram8888) <a href="https://www.reddit.com/r/amiibros/comments/328hqz/amiibo_encryption_reverseengineering/">announced on reddit</a> that 
+he had determined the Amiibo encryption and signing scheme by <b>reverse-engineered the NFC binary employed by the Nintendo 3DS operating system</b>. He discovered that the game console has the following data hard-coded into the hardware:
+</p>
 <ul>
-    <li>Discussion about DIY amiibo on <a href="https://gbatemp.net/threads/diy-amiibo-cards.406978/">GBAtemp</a> and <a href="http://www.proxmark.org/forum/viewtopic.php?id=2440">Proxmark3 forums</a> starting around May 2015</li>
-    <li>Algorithm for deriving password (4-byte PWD) from 7-byte UID determined around August 2015 (anon8888?): 
-        <pre>
-password[0] = 0xAA ^ (uid[1] ^ uid[3])
-password[1] = 0x55 ^ (uid[2] ^ uid[4])
-password[2] = 0xAA ^ (uid[3] ^ uid[5])
-password[3] = 0x55 ^ (uid[4] ^ uid[6])
-        </pre>
+    <li><b>"Data" Key Info:</b> <em>(used for decrypting and signing user memory)</em>
+        <ul>
+            <li>16-byte HMAC key</li>
+            <li>14-byte "magic bytes"</li>
+            <li>14-byte "type string" (literally: <em>"unfixed infos"</em>)</li>
+        </ul>
     </li>
-    <li>The encryption and hashing scheme was figured out around September 2015 (asper? iceman? @proxmark.org/forum/)</li>
-    <li>The "master keys" (i.e. "Tag Key" and "Data Key") were determined: <a style="color:inherit !important" href="http://www.proxmark.org/forum/viewtopic.php?pid=17791#p17791"><i>"Thanks to some great help Amiibo can be considered almost understood...About encryption it was really really hard and long to find the needed data (those data, as stated in the previously linked thread on reddit, are Nintendo properties so cannot be shared"</i></a>.</li>
+    <li><b>"Tag" Key Info:</b> <em>(used for signing tag UID and tag settings)</em>
+        <ul>
+            <li>16-byte HMAC key</li>
+            <li>16-byte "magic bytes"</li>
+            <li>14-byte "type string" (literally: <em>"locked secret"</em>)</li>
+        </ul>
+    </li>
+    <li><b>32-byte xorpad</b></li>
 </ul>
 
+<p>The hard-coded "Data" and "Tag" keys above are <b>not used directly</b> for encryption/signing. Rather, the key info is used (along with data unique to each tag) as input to a DRBG (Deterministic Random Bit Generator) to <b>derive the actual keys</b>. This process is outlined below:</p>
 
-<h3>Amiibo Byte Layout</h3>
+
+<table>
+    <tr><th>"DRBG Seed" Parts</th><th>Size</th></tr>
+    <tr><td>"Type String"</td><td>14 bytes</td></tr>
+    <tr><td>Amiibo Write Counter<div><em>(first 2 bytes of page #4)</em></div></td><td>2 bytes</td></tr>
+    <tr><td>Magic Bytes<div><em>(Prepend with 0's if needed)</em></div></td><td>16 bytes</td></tr>
+    <tr><td>Tag UID</td><td>8 bytes</td></tr>
+    <tr><td>Tag UID</td><td>8 bytes</td></tr>
+    <tr><td>xorpad ^ amiibo salt<div><em>(amiibo salt found on page[24..&lt;32])</em></div></td><td>32 bytes</td></tr>
+</table>
+
+<p>Each "DRBG Seed" is then used as input for HMAC-SHA256, signed with its respective "16-byte HMAC key", to get the actual keys, like so:</p>
+<table>
+    <tr><th>HMAC-SHA256 Input</th><th colspan="2">HMAC-SHA256 Output</th></tr>
+    <tr>
+        <td rowspan="2">0x0000 + "DRBG Seed"</td>
+        <td>16 bytes</td>
+        <td>AES Key</td>
+    </tr>
+    <tr>
+        <td>16 bytes</td>
+        <td>AES IV</td>
+    </tr>
+    <tr>
+        <td rowspan="2">0x0001 + "DRBG Seed"</td>
+        <td>16 bytes</td>
+        <td>HMAC Key</td>
+    </tr>
+    <tr>
+        <td>16 bytes</td>
+        <td>-</td>
+    </tr>
+</table>
+
+<p>So, ultimately we end up with two sets of keys:</p>
+
+<table>
+    <tr><th style="width:25%">"Tag" Key</th><th>Usage</th></tr>
+    <tr>
+        <td>AES Key</td>
+        <td>Not used?</td>
+    </tr>
+    <tr>
+        <td>AES IV</td>
+        <td>Not used?</td>
+    </tr>
+    <tr>
+        <td>HMAC Key</td>
+        <td>Sign tag data with HMAC-256</td>
+    </tr>
+</table>
+
+<table>
+    <tr><th style="width:25%">"Data" Key</th><th>Usage</th></tr>
+    <tr>
+        <td>AES Key</td>
+        <td rowspan="2">Encrypt/Decrypt Main Amiibo Data with AES-128-CTR</td>
+    </tr>
+    <tr>
+        <td>AES IV</td>
+    </tr>
+    <tr>
+        <td>HMAC Key</td>
+        <td>Sign Amiibo data + tag data with HMAC-256</td>
+    </tr>
+</table>
+
+<p>With everything figured out, socram8888 subsequently released <a href="https://github.com/socram8888/amiitool">amiitool</a>, a program to encrypt/decrypt/copy amiibo data</p>
+
+<a name="amiibo_byte_layout"></a>
+<h3>Amiibo Byte Layout Overview</h3>
 <table class="layout">
     <tr>
         <th rowspan="2">Page</th>
@@ -550,6 +686,53 @@ password[3] = 0x55 ^ (uid[4] ^ uid[6])
 
 </table>
 
+<h3>NTAG215 Password Reverse Engineering</h3>
+<p>Around 2015, it was discovered that the 32-bit password used for locking down write access is derived from the 7-byte tag UID using the following algorithm:</p>
+<pre>
+password[0] = 0xAA ^ (uid[1] ^ uid[3])
+password[1] = 0x55 ^ (uid[2] ^ uid[4])
+password[2] = 0xAA ^ (uid[3] ^ uid[5])
+password[3] = 0x55 ^ (uid[4] ^ uid[6])
+</pre>
+
+
+<h3>Reading Data from iPhone</h3>
+
+<h4>Step-by-Step Overview</h4>
+<ul>
+    <li>Create an <b>NFCTagReaderSession</b> and connect to the tag as an NFCMiFareTag</li>
+    <li>Use <b>`sendMiFareCommand()`</b> to send <b>READ</b> or <b>FAST_READ</b> command to tag and read all 130 pages of data.</li>
+    <li>To determine amiibo model type, use data from page #21 and #22. Page #21 (bytes[84..&lt;88]) is the "head" and page #22 (bytes[88..&lt;92]) is the "tail" - you can use these values at <a href="http://amiiboapi.com">amiiboapi.com</a>.</li>
+    <li>To read encrpyted data (pages #40 to #130), you need the private Nintendo "Data Key" (aka "unfixed-info" key).</li>
+</ul>
+
+
+<h3>Cloning an Amiibo to blank NTAG215 with iPhone</h3>
+<p>If you have the "master" keys, you can easily clone an amiibo to a blank tag like so:</p>
+
+<h4>Step-by-Step Overview</h4>
+<ul>
+    <li>Read all data from source amiibo</li>
+    <li>Read UID from blank target tag</li>
+    <li>Decrypt source "Amiibo Data" (pages #40 to #130)</li>
+    <li>Re-compute the HMAC hashes with new keys derived from decrypted data and target UID</li>
+    <li>Re-encrypt the "Ammibo Data" with new key derived from target UID</li>
+    <li>Re-construct patched data using the new HMAC hashes and newly re-encrypted "Amiibo Data"</li>
+    <li>Write pages #3 to #130 of the patched data to blank target tag using miFare <b>WRITE</b> command</li>
+    <li>Write to page #134 to configure authentication</li>
+    <li>Generate password from target UID and write to page #133</li>
+    <li>Write to page #2 to enable the "Lock Bytes"</li>
+    <li>Write to page #130 to enable the "Dynamic Lock Bytes"</li>
+    <li>Write to pages #131 and #132 for CFG</li>
+</ul>
+
+<h4>Code Example for Cloning (Swift)</h4>
+<ul>
+    <li><a href="https://github.com/kevinbrewster/TagWallet/blob/def83606581fb23514f94eb3c5c4b1bfd71781ff/TagWallet/TagDump.swift#L49-L80" target="_blank">"Patching" existing dump with new UID</a></li>
+    <li><a href="https://github.com/kevinbrewster/TagWallet/blob/def83606581fb23514f94eb3c5c4b1bfd71781ff/TagWallet/NTAG215Tag.swift#L60-L86" target="_blank">Writing "patched" dump to blank tag</a></li>
+</ul>
+
+
 
 <h3>Nintendo 3DS Read Procedure</h3>
 <ul>
@@ -575,42 +758,6 @@ password[3] = 0x55 ^ (uid[4] ^ uid[6])
 
     <li>WRITE page #4 (same data as before except first byte is 0xA5 this time.)</li>
     <li>FAST_READ page #4</li>
-</ul>
-
-
-<h3>Reading Data from iPhone</h3>
-
-<h4>Step-by-Step Overview</h4>
-<ul>
-    <li>Create an <b>NFCTagReaderSession</b> and connect to the tag as an NFCMiFareTag</li>
-    <li>Use <b>`sendMiFareCommand()`</b> to send <b>READ</b> or <b>FAST_READ</b> command to tag and read all 130 pages of data.</li>
-    <li>To determine amiibo model type, use data from page #21 and #22. Page #21 (bytes[84..&lt;88]) is the "head" and page #22 (bytes[88..&lt;92]) is the "tail" - you can use these values at <a href="http://amiiboapi.com">amiiboapi.com</a>.</li>
-    <li>To read encrpyted data (pages #40 to #130), you need the private Nintendo "Data Key" (aka "unfixed-info" key).</li>
-</ul>
-
-
-<h3>Cloning an Amiibo to blank NTAG215 with iPhone</h3>
-
-<h4>Step-by-Step Overview</h4>
-<ul>
-    <li>Read all data from source amiibo</li>
-    <li>Read UID from blank target tag</li>
-    <li>Decrypt source "Amiibo Data" (pages #40 to #130)</li>
-    <li>Re-compute the HMAC hashes with new keys derived from decrypted data and target UID</li>
-    <li>Re-encrypt the "Ammibo Data" with new key derived from target UID</li>
-    <li>Re-construct patched data using the new HMAC hashes and newly re-encrypted "Amiibo Data"</li>
-    <li>Write pages #3 to #130 of the patched data to blank target tag using miFare <b>WRITE</b> command</li>
-    <li>Write to page #134 to configure authentication</li>
-    <li>Generate password from target UID and write to page #133</li>
-    <li>Write to page #2 to enable the "Lock Bytes"</li>
-    <li>Write to page #130 to enable the "Dynamic Lock Bytes"</li>
-    <li>Write to pages #131 and #132 for CFG</li>
-</ul>
-
-<h4>Code Example for Cloning (Swift)</h4>
-<ul>
-    <li><a href="https://github.com/kevinbrewster/TagWallet/blob/def83606581fb23514f94eb3c5c4b1bfd71781ff/TagWallet/TagDump.swift#L49-L80" target="_blank">"Patching" existing dump with new UID</a></li>
-    <li><a href="https://github.com/kevinbrewster/TagWallet/blob/def83606581fb23514f94eb3c5c4b1bfd71781ff/TagWallet/NTAG215Tag.swift#L60-L86" target="_blank">Writing "patched" dump to blank tag</a></li>
 </ul>
 
 
