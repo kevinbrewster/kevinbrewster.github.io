@@ -479,8 +479,7 @@ he had determined the Amiibo encryption and signing scheme by <b>reverse-enginee
 <table>
     <tr><th>"DRBG Seed" Parts</th><th>Size</th></tr>
     <tr><td>"Type String"</td><td>14 bytes</td></tr>
-    <tr><td>Amiibo Write Counter<div><em>(first 2 bytes of page #4)</em></div></td><td>2 bytes</td></tr>
-    <tr><td>Magic Bytes<div><em>(Prepend with 0's if needed)</em></div></td><td>16 bytes</td></tr>
+    <tr><td>Magic Bytes<div><em>(Prepended with 2-byte "Amiibo Write Counter" if "Data" Key Info)</em></div></td><td>16 bytes</td></tr>
     <tr><td>Tag UID</td><td>8 bytes</td></tr>
     <tr><td>Tag UID</td><td>8 bytes</td></tr>
     <tr><td>xorpad ^ amiibo salt<div><em>(amiibo salt found on page[24..&lt;32])</em></div></td><td>32 bytes</td></tr>
