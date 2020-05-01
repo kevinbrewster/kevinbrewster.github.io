@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "Nintendo Amiibo (NFC Toy) Reverse-Engineering"
+title:  "Reverse Engineering Nintendo Amiibo (NFC Toy)"
 date:   2020-04-26 23:41:47 -0400
 permalink: /:title/
 ---
@@ -13,11 +13,11 @@ permalink: /:title/
 <h3>Amiibo Overview</h3>
 
 <ul>
-    <li>~4" (10cm) tall figurines (or cards) made by Nintendo that have an <b>integrated NTAG215 chip</b> at their base</li>
+    <li>~4" (10cm) tall <a href="https://www.nintendo.com/amiibo/" tarrget="_blank">collectible figurines</a> (or cards) made by Nintendo that have an <b>integrated NTAG215 chip</b> at their base</li>
     <li>Recent game consoles (e.g. 3DS, Switch) and controllers have NFC readers to detect Amiibo "taps"</li>
     <li>Amiibo's can <b>unlock extra character/levels</b> in games or <b>give bonuses/special items</b> (via reading from NTAG215)</li>
     <li>Amiibo's can track player customizations and/or level-ups (via writing to NTAG215)</li>
-    <li>There's often artificial scarcity of certain models. Some are especially rare or "special". Re-sold on ebay for highly marked up prices.</li>
+    <li>There's often artificial scarcity of certain models. Some are especially rare or "special" and re-sold on ebay for highly marked up prices.</li>
 </ul>
 
 
@@ -540,6 +540,8 @@ he had determined the Amiibo encryption and signing scheme by <b>reverse-enginee
         <td>Sign Amiibo data + tag data with HMAC-256</td>
     </tr>
 </table>
+
+<p>&#187; See this process in <a href="https://github.com/kevinbrewster/TagWallet/blob/master/TagWallet/TagEncyption.swift" target="_blank">code (Swift)</a></p>
 
 <p>With everything figured out, socram8888 subsequently released <a href="https://github.com/socram8888/amiitool">amiitool</a>, a program to encrypt/decrypt/copy amiibo data</p>
 
