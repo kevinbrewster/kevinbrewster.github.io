@@ -1,0 +1,71 @@
+
+final class AutoRetryNetworkService: Service {
+    // attempts to re-try 3 times if unsuccessful
+    let service: Service
+    init(underlyingService: Service) {
+        self.service = underlyingService
+    }
+    func get(request: Requests, completion: @escaping (Result<Data, Error>) -> Void) {
+         get(request: request, remainingRetries: 3, completion: completion)
+    }
+    private func get(request: Requests, remainingRetries: Int, completion: @escaping (Result<Data, Error>) -> Void) {
+        service.get(request: request) { result in
+            switch result {
+            case .success(let data):
+                completion(.success(data))
+            case .failure(let error):
+                if remainingRetries > 0 {
+                    self.get(request: request, remainingRetries: remainingRetries - 1, completion: completion)
+                } else {
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+}
+
+
+// MARK: Simulating poor network conditions
+
+final class BadNetworkService: Service {
+    // Is only successful 50% of the time
+    func get(request: Requests, completion: @escaping (Result<Data, Error>) -> Void) {
+        let random = Int.random(in: 0...1)
+        
+        if random == 0 {
+            completion(.failure(ServiceError.invalidData))
+        } else {
+            URLSession.shared.dataTask(with: request.url) { (data, response, error) in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                guard let data = data else {
+                    completion(.failure(ServiceError.invalidData))
+                    return
+                }
+                completion(.success(data))
+            }.resume()
+        }
+    }
+}
+
+
+final class SlowNetworkService: Service {
+    // Is always successful but very slow
+    func get(request: Requests, completion: @escaping (Result<Data, Error>) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            URLSession.shared.dataTask(with: request.url) { (data, response, error) in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                guard let data = data else {
+                    completion(.failure(ServiceError.invalidData))
+                    return
+                }
+                completion(.success(data))
+            }.resume()
+        }
+    }
+}
